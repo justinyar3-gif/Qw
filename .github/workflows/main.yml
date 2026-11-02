@@ -1,0 +1,40 @@
+# Builds the APK on GitHub's servers, for people without a PC. Put this file in a PRIVATE repository of your own as
+#   .github/workflows/build-apk.yml
+# and attach two files to a release with the tag "files": main.dol (yours) and the project zip (wwe13-recomp-update*.zip).
+# Then: Actions tab -> "Build WWE13 APK" -> Run workflow. When it is green (30 to 90 minutes), open the run and download the artifact "wwe13-apk".
+# The APK contains code made from your main.dol: keep the repository private and do not share the APK. Never run this in a public repository.
+name: Build WWE13 APK
+on:
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Download main.dol and the project zip from this repository's release "files"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work && cd work
+          gh release download files --repo "$GITHUB_REPOSITORY" --pattern 'main.dol' --pattern '*.zip'
+          ls -la
+          unzip -q ./*.zip
+          ls
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install the platform, NDK and CMake
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+      - name: Lift main.dol to C and build the APK
+        working-directory: work/wwe13-recomp
+        run: |
+          chmod +x android/gradlew android/build_apk.sh
+          android/build_apk.sh ../main.dol
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wwe13-apk
+          path: work/wwe13-recomp/wwe13-debug.apk
+          retention-days: 3
+        
